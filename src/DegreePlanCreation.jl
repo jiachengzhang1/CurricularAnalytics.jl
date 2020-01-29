@@ -15,17 +15,31 @@ function bin_filling(curric::Curriculum, additional_courses::Array{Course}=Array
     terms = Array{Term,1}()
     term_credits = 0
     term_courses = Course[]
-    UC = sort!(deepcopy(curric.courses), by=course_num)  # lower numbered courses will be considered first
+    UC::AbstractCourse = sort!(combine_strict_cos(curric.courses), by=course_num)  # lower numbered courses will be considered first
     while length(UC) > 0
         if ((c = select_vertex(curric, term_courses, UC)) != nothing)
             deleteat!(UC, findfirst(isequal(c), UC))
             if term_credits + c.credit_hours <= max_cpt
-                append!(term_courses, [c])
+                if typeof(c) == Course
+                    append!(term_courses, [c])
+                elseif typeof(c) == ComboCourse
+                    append!(term_courses, [c.course_1, c.course_2])
+                end
                 term_credits = term_credits + c.credit_hours
+                # add any strict-corequisites to the same term
+                for req in c.requisites
+                    if req == strict_co
+                    end
+                end
             else  
                 append!(terms, [Term(term_courses)])
-                term_courses = Course[c] 
+                if typeof(c) == Course
+                    term_courses = Course[c] 
+                elseif typeof(c) == ComboCourse
+                    term_courses = Course[c.course_1, c.course_2]
+                end    
                 term_credits = c.credit_hours
+                # add any strict-corequisites to teh same term
             end
         else  # can't find a course to add to current term, create a new term
             length(term_courses) > 0 ? append!(terms, [Term(term_courses)]) : nothing
@@ -37,7 +51,7 @@ function bin_filling(curric::Curriculum, additional_courses::Array{Course}=Array
     return terms
 end
 
-function select_vertex(curric::Curriculum, term_courses::Array{Course,1}, UC::Array{Course,1})
+function select_vertex(curric::Curriculum, term_courses::Array{Course,1}, UC::Array{AbstractCourse,1})
     for target in UC
         t_id = target.vertex_id[curric.id]
         UCs = deepcopy(UC)
@@ -69,4 +83,19 @@ end
 
 function course_num(c::Course)
     c.num != "" ? c.num : c.name
+end
+
+function combine_strict_cos(courses::Array{AbstractCourse})
+    combo_courses = deepcopy(courses)
+    for c in courses
+        for r in c.requisites
+            if r == strict_co
+                new_course = ComboCourse(course_from_id(r[1]), c)
+                filter!(x->x!=course_from_id(r[1]), combo_courses)
+                filter!(x->x!=c, combo_courses)
+                push!(combo_courses, new_course)
+            end
+        end 
+    end
+    return combo_courses
 end

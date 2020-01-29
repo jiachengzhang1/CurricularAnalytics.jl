@@ -67,6 +67,9 @@ function add_lo_requisite!(requisite_lo::Array{LearningOutcome}, lo::LearningOut
     end
 end
 
+# supertype for courses
+abstract type AbstractCourse end
+
 ##############################################################
 # Course data type
 """
@@ -90,7 +93,7 @@ Keyword:
 julia> Course("Calculus with Applications", 4, prefix="MA", num="112", canonical_name="Calculus I")
 ```
 """
-mutable struct Course
+mutable struct Course <: AbstractCourse
     id::Int                             # Unique course id
     vertex_id::Dict{Int, Int}           # The vertex id of the course w/in a curriculum graph, stored as 
                                         # (curriculum_id, vertex_id)
@@ -134,6 +137,59 @@ mutable struct Course
         this.metadata = Dict{String, Any}()
         this.learning_outcomes = learning_outcomes
         this.vertex_id = Dict{Int, Int}()       # curriculum id -> vertex id
+        return this
+    end
+end
+
+# ComboCourse data type -- genrally used in degree plan creation to combine two courses that are strict-corequisites with one another,
+#   allowing them to be treated as a single course.
+# Must be created from two existing Course objects
+# TODO: support the ability to combine a ComboCourse with a Course
+mutable struct ComboCourse <: AbstractCourse
+    id::Int                             # Unique course id
+    course_1::AbstractCourse            # 1st abstract course in combination
+    course_2::AbstractCourse            # 2nd abstract course in combination
+    vertex_id::Dict{Int, Int}           # The vertex id of the course w/in a curriculum graph, stored as 
+                                        # (curriculum_id, vertex_id)
+    name::AbstractString                # Name of the course, e.g., Introduction to Psychology
+    credit_hours::Real                  # Number of credit hours associated with course. For the
+                                        # purpose of analytics, variable credits are not supported
+    prefix::AbstractString              # Typcially a department prefix, e.g., PSY
+    num::AbstractString                 # Course number, e.g., 101, or 302L
+    institution::AbstractString         # Institution offering the course
+    college::AbstractString             # College or school (within the institution) offering the course
+    department::AbstractString          # Department (within the school or college) offering the course
+    cross_listed::Array{Course}         # courses that are cross-listed with the course (same as "also offered as")
+    canonical_name::AbstractString      # Standard name used to denote the course in the
+                                        # discipline, e.g., Psychology I
+    requisites::Dict{Int, Requisite}    # List of requisites, in (requisite_course id, requisite_type) format
+    learning_outcomes::Array{LearningOutcome}  # A list of learning outcomes associated with the course
+    metrics::Dict{String, Any}          # Course-related metrics
+    metadata::Dict{String, Any}         # Course-related metadata
+
+    # Constructor
+    function ComboCourse(c1::AbstractCourse, c2::AbstractCourse)
+        this = new()
+        this.course_1 = c1
+        this.course_2 = c2
+        this.name = c1.name * c2.name
+        this.credit_hours = c1.credit_hours + c2.credit_hours
+        c1.prefix == c2.prefix ? this.prefix = c1.prefix : this.prefix = c1.prefix * c2.prefix
+        c1.num == c2.num ? this.num = c1.num : this.num = c1.num * c2.num
+        c1.institution == c2.institution ? this.institution = c1.institution : this.institution = c1.institution * c2.institution
+        c1.college == c2.college ? this.college = c1.college : this.college = c1.college * c2.college
+        c1.department == c2.department ? this.department = c1.department : this.department = c1.department * c2.department
+        this.id = mod(hash(this.name * this.prefix * this.num * this.institution), UInt32)
+        # combine the requisites of the two courses
+        this.requisites = deepcopy(c1.requisites)
+        for r2 in c2.requisites
+            if !(r2 in this.requisites)
+                this.requisites[r2[1]] = r2[2]
+            end
+        end
+        # remove any requisite relationships that exist between c1 and c2        
+        c1.id in keys(this.requisites) ? delete_requisite!(c1, this) : nothing
+        c2.id in keys(this.requisites) ? delete_requisite!(c2, this) : nothing
         return this
     end
 end

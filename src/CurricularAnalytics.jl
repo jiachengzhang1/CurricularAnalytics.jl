@@ -26,7 +26,7 @@ include("DataHandler.jl")
 include("Visualization.jl")
 
 export Degree, AA, AS, AAS, BA, BS, System, semester, quarter, Requisite, pre, co, strict_co, EdgeClass, LearningOutcome, 
-        Course, add_requisite!, delete_requisite!, CourseCatalog, add_course!, is_duplicate, course, 
+        Course, add_requisite!, delete_requisite!, CourseCatalog, add_course!, is_duplicate, course, ComboCourse,
         Curriculum, total_credits, requisite_type, Term, DegreePlan, find_term, 
         course_from_id, course_from_vertex, dfs, topological_sort, all_paths, longest_path, longest_paths, gad, reachable_from, 
         reachable_from_subgraph, reachable_to, reachable_to_subgraph, reach, reach_subgraph, isvalid_curriculum, 
